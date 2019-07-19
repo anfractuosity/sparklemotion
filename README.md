@@ -34,5 +34,6 @@ force_turbo=1
 # ToDo
 
 * Error checking (check vids folder exists, create if necessary)
-* Implement motion detection via little doppler radar module 
+* Implement motion detection via little doppler radar module
+* Upload video files somewhere via SSH, probably using Paramiko 
 
