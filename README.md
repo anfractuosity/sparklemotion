@@ -23,6 +23,17 @@ sudo systemctl start hack
 sudo systemctl enable sparkle
 sudo systemctl start sparkle
 ```
+
+To try to save a little power
+
+```
+sudo systemctl enable no_usb.service
+sudo systemctl start no_usb.service
+
+sudo systemctl enable no_hdmi.service
+sudo systemctl start no_hdmi.service
+```
+
 I'm currently having a few issues with the camera on the Pi Zero and am testing
 the following:
 
