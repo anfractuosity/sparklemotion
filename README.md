@@ -31,7 +31,7 @@ over_voltage=2
 force_turbo=1
 ```
 
-# ToDO
+# ToDo
 
 * Error checking (check vids folder exists, create if necessary)
 * Implement motion detection via little doppler radar module 
