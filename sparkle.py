@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-
+import threading
 import sys
 import os
 import numpy as np
@@ -18,6 +18,26 @@ WAIT = 30 # time to wait before / after motion
 prior_image = None
 
 motionv = False
+
+
+def stream_service():
+    server_socket = socket.socket()
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(('0.0.0.0', 10000))
+    server_socket.listen(0) 
+    
+    while True:
+        try:
+            conn = server_socket.accept()[0].makefile('wb')
+            camera.start_recording(conn,splitter_port=3,format='h264')
+            while True:
+                camera.wait_recording(1,splitter_port=3)
+        except Exception as e:
+            try:
+                camera.stop_recording(splitter_port=3)
+            except:
+                ok = 1
+            continue
 
 class MotionAnalyser(picamera.array.PiMotionAnalysis):
     def analyse(self, a):
@@ -41,7 +61,7 @@ def detect_motion(camera):
 
 with picamera.PiCamera() as camera:
     print("Starting camera...")
-
+    
     out = MotionAnalyser(camera) 
     #camera.awb_mode = 'greyworld'
     camera.resolution = (1920, 1080)
@@ -50,6 +70,9 @@ with picamera.PiCamera() as camera:
     camera.framerate = 30
     camera.start_recording(stream, splitter_port=1,format='h264')
     camera.start_recording('/dev/null', splitter_port=2, format='h264', motion_output=MotionAnalyser(camera)) 
+
+    t = threading.Thread(name='stream_service', target=stream_service)
+    t.start()
 
     idv = 0
 
