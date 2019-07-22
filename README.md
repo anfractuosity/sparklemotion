@@ -12,7 +12,8 @@ correctly using the latest Pi firmware in Buster.
 ```
 sudo apt-get install python3-numpy
 sudo apt-get install python3-pip
-sudo pip3 install picamera
+pip3 install picamera
+pip3 install toml
 mkdir /home/pi/vids
 
 cp sparkle.py /home/pi
