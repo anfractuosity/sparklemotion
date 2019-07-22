@@ -11,15 +11,12 @@ import picamera.array
 from picamera import mmal 
 import datetime
 import ctypes as ct
+import toml
 
-VIDS = "vids"
-
+config = toml.load(open('config.toml'))
+VIDS = config['videos']['path']
 WAIT = 30 # time to wait before / after motion
-
-prior_image = None
-
 motionv = False
-
 
 def stream_service():
     server_socket = socket.socket()
@@ -65,7 +62,11 @@ with picamera.PiCamera() as camera:
     
     out = MotionAnalyser(camera) 
     #camera.awb_mode = 'greyworld'
-    camera.resolution = (1920, 1080)
+
+    camera.hflip = config['camera']['hflip']
+    camera.vflip = config['camera']['vflip']
+
+    camera.resolution = (config['camera']['width'], config['camera']['height'])
 
     stream = picamera.PiCameraCircularIO(camera, seconds=10)
     camera.framerate = 30
@@ -84,6 +85,7 @@ with picamera.PiCamera() as camera:
             if detect_motion(camera):
 
                 print('Motion detected!')
+
                 idv = datetime.datetime.now().timestamp()
                 camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1)               
                 stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-WAIT)), seconds=WAIT)
@@ -93,9 +95,8 @@ with picamera.PiCamera() as camera:
                     camera.wait_recording(WAIT,splitter_port=1)
 
                 print('Motion stopped!')
-                idv += 1
 
+                idv += 1
                 camera.split_recording(stream,splitter_port=1)
     finally:
         camera.stop_recording()
-
