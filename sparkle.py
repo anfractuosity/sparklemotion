@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+
 import socket
 import threading
 import sys
@@ -19,6 +20,7 @@ WAIT = 30 # time to wait before / after motion
 motionv = False
 
 def stream_service():
+
     server_socket = socket.socket()
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server_socket.bind(('0.0.0.0', 10000))
@@ -38,7 +40,9 @@ def stream_service():
             continue
 
 class MotionAnalyser(picamera.array.PiMotionAnalysis):
+
     def analyse(self, a):
+
         global motionv
 
         # Calculate the motion vector polar lengths
@@ -47,7 +51,10 @@ class MotionAnalyser(picamera.array.PiMotionAnalysis):
             np.square(a['y'].astype(np.float))
             ).clip(0, 255).astype(np.uint8)
 
-        if np.count_nonzero(r) > 0 and np.mean(r[np.nonzero(r)]) > 3.0 and (r > 3.0).sum() > 100 :
+        #if np.count_nonzero(r) > 0 :
+        #    print(np.mean(r[np.nonzero(r)]) ,  (r > 0.0).sum())
+
+        if np.count_nonzero(r) > 0 and np.mean(r[np.nonzero(r)]) > config['motion']['mean_threshold'] and (r > 0.0).sum() > config['motion']['vector_threshold']:
             motionv = True
         else:
             motionv = False
@@ -58,6 +65,7 @@ def detect_motion(camera):
     return motionv
 
 with picamera.PiCamera() as camera:
+
     print("Starting camera...")
     
     out = MotionAnalyser(camera) 
@@ -65,10 +73,9 @@ with picamera.PiCamera() as camera:
 
     camera.hflip = config['camera']['hflip']
     camera.vflip = config['camera']['vflip']
-
     camera.resolution = (config['camera']['width'], config['camera']['height'])
 
-    stream = picamera.PiCameraCircularIO(camera, seconds=10)
+    stream = picamera.PiCameraCircularIO(camera, seconds=WAIT)
     camera.framerate = 30
     camera.start_recording(stream, splitter_port=1,format='h264')
     camera.start_recording('/dev/null', splitter_port=2, format='h264', motion_output=MotionAnalyser(camera)) 
@@ -80,6 +87,7 @@ with picamera.PiCamera() as camera:
 
     try:
         while True:
+
             camera.wait_recording(1)
 
             if detect_motion(camera):
@@ -87,9 +95,12 @@ with picamera.PiCamera() as camera:
                 print('Motion detected!')
 
                 idv = datetime.datetime.now().timestamp()
-                camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1)               
-                stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-WAIT)), seconds=WAIT)
+                camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1)      
+
+                stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-WAIT)), seconds=WAIT) # copy time before motion
                 stream.clear()
+                
+                camera.wait_recording(WAIT,splitter_port=1)
 
                 while detect_motion(camera):
                     camera.wait_recording(WAIT,splitter_port=1)
@@ -100,3 +111,4 @@ with picamera.PiCamera() as camera:
                 camera.split_recording(stream,splitter_port=1)
     finally:
         camera.stop_recording()
+
