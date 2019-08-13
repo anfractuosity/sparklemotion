@@ -42,6 +42,22 @@ the following:
 over_voltage=2
 force_turbo=1
 ```
+# Example config.toml file
+
+```
+[camera]
+width = 1280
+height = 720
+hflip = true
+vflip = true
+
+[motion]
+mean_threshold = 10.0
+vector_threshold = 500
+
+[videos]
+path = "/home/pi/vids"
+```
 
 # ToDo
 
