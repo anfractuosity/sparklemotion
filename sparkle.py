@@ -16,7 +16,8 @@ import toml
 
 config = toml.load(open('config.toml'))
 VIDS = config['videos']['path']
-WAIT = 30 # time to wait before / after motion
+CIRCULAR = 10 # length of circular buffer
+WAIT = 15 # time to wait before / after motion
 motionv = False
 
 def stream_service():
@@ -51,8 +52,8 @@ class MotionAnalyser(picamera.array.PiMotionAnalysis):
             np.square(a['y'].astype(np.float))
             ).clip(0, 255).astype(np.uint8)
 
-        #if np.count_nonzero(r) > 0 :
-        #    print(np.mean(r[np.nonzero(r)]) ,  (r > 0.0).sum())
+        if np.count_nonzero(r) > 0 :
+            print(np.mean(r[np.nonzero(r)]) ,  (r > 0.0).sum())
 
         if np.count_nonzero(r) > 0 and np.mean(r[np.nonzero(r)]) > config['motion']['mean_threshold'] and (r > 0.0).sum() > config['motion']['vector_threshold']:
             motionv = True
@@ -75,7 +76,7 @@ with picamera.PiCamera() as camera:
     camera.vflip = config['camera']['vflip']
     camera.resolution = (config['camera']['width'], config['camera']['height'])
 
-    stream = picamera.PiCameraCircularIO(camera, seconds=WAIT)
+    stream = picamera.PiCameraCircularIO(camera, seconds=CIRCULAR)
     camera.framerate = 30
     camera.start_recording(stream, splitter_port=1,format='h264')
     camera.start_recording('/dev/null', splitter_port=2, format='h264', motion_output=MotionAnalyser(camera)) 
@@ -95,19 +96,18 @@ with picamera.PiCamera() as camera:
                 print('Motion detected!')
 
                 idv = datetime.datetime.now().timestamp()
-                camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1)      
+                camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1) # do this to record frames after motion detected     
 
-                stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-WAIT)), seconds=WAIT) # copy time before motion
+                stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-CIRCULAR)), seconds=CIRCULAR) # copy circular buffer before motion to disk
                 stream.clear()
                 
-                camera.wait_recording(WAIT,splitter_port=1)
-
                 while detect_motion(camera):
                     camera.wait_recording(WAIT,splitter_port=1)
 
                 print('Motion stopped!')
 
                 idv += 1
+
                 camera.split_recording(stream,splitter_port=1)
     finally:
         camera.stop_recording()
