@@ -9,30 +9,29 @@ correctly using the latest Pi firmware in Buster.
 
 # Installation
 
+To build the package and install it:
+
 ```
-sudo apt-get install python3-numpy
-sudo apt-get install python3-pip
-pip3 install picamera
-pip3 install toml
-mkdir /home/pi/vids
+dpkg-deb --build sparklemotion
+sudo apt install ./sparklemotion.deb 
+```
 
-cp sparkle.py /home/pi
+To start the service:
 
-sudo cp *.service /etc/systemd/system
+```
 sudo systemctl enable hack
+sudo systemctl enable sparklemotion
 sudo systemctl start hack
-sudo systemctl enable sparkle
-sudo systemctl start sparkle
+sudo systemctl start sparklemotion
 ```
 
 To try to save a little power
 
 ```
-sudo systemctl enable no_usb.service
-sudo systemctl start no_usb.service
-
-sudo systemctl enable no_hdmi.service
-sudo systemctl start no_hdmi.service
+sudo systemctl enable no_usb
+sudo systemctl enable no_hdmi
+sudo systemctl start no_usb
+sudo systemctl start no_hdmi
 ```
 
 I'm currently having a few issues with the camera on the Pi Zero and am testing
