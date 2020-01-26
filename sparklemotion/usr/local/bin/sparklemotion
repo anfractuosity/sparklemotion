@@ -14,7 +14,7 @@ import datetime
 import ctypes as ct
 import toml
 
-config = toml.load(open('config.toml'))
+config = toml.load(open('/etc/sparklemotion/config.toml'))
 VIDS = config['videos']['path']
 CIRCULAR = 10 # length of circular buffer
 WAIT = 15 # time to wait before / after motion

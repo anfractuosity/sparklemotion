@@ -1,0 +1,12 @@
+[camera]
+width = 1280
+height = 720
+hflip = true
+vflip = true
+
+[motion]
+mean_threshold = 7.0
+vector_threshold = 150
+
+[videos]
+path = "/home/pi/vids"
