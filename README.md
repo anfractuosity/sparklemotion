@@ -15,6 +15,8 @@ dpkg-deb --build sparklemotion
 sudo apt install ./sparklemotion.deb 
 ```
 
+Edit /etc/sparklemotion/config.toml if necessary to alter resolution, thresholds for video to be recorded etc.
+
 To start the service:
 
 ```
