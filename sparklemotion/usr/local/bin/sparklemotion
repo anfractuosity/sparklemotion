@@ -2,49 +2,25 @@
 
 import socket
 import threading
-import sys
 import os
-import numpy as np
-import io
 import random
 import picamera
 import picamera.array
-from picamera import mmal 
 import datetime
-import ctypes as ct
 import toml
+import numpy as np
 
-config = toml.load(open('/etc/sparklemotion/config.toml'))
-VIDS = config['videos']['path']
-CIRCULAR = 10 # length of circular buffer
-WAIT = 15 # time to wait before / after motion
-motionv = False
 
-def stream_service():
+MOTION_PRESENT = False
+MEAN_THRESHOLD = 0
+VECTOR_THRESHOLD = 0
 
-    server_socket = socket.socket()
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(('0.0.0.0', 10000))
-    server_socket.listen(0) 
-    
-    while True:
-        try:
-            conn = server_socket.accept()[0].makefile('wb')
-            camera.start_recording(conn,splitter_port=3,format='h264')
-            while True:
-                camera.wait_recording(1,splitter_port=3)
-        except Exception as e:
-            try:
-                camera.stop_recording(splitter_port=3)
-            except:
-                ok = 1
-            continue
 
+# Class that is used to analyse video for motion
 class MotionAnalyser(picamera.array.PiMotionAnalysis):
 
     def analyse(self, a):
-
-        global motionv
+        global MOTION_PRESENT
 
         # Calculate the motion vector polar lengths
         r = np.sqrt(
@@ -52,63 +28,98 @@ class MotionAnalyser(picamera.array.PiMotionAnalysis):
             np.square(a['y'].astype(np.float))
             ).clip(0, 255).astype(np.uint8)
 
-        if np.count_nonzero(r) > 0 :
-            print(np.mean(r[np.nonzero(r)]) ,  (r > 0.0).sum())
-
-        if np.count_nonzero(r) > 0 and np.mean(r[np.nonzero(r)]) > config['motion']['mean_threshold'] and (r > 0.0).sum() > config['motion']['vector_threshold']:
-            motionv = True
+        # Output if motion is present or not
+        if np.count_nonzero(r) > 0 and np.mean(r[np.nonzero(r)]) > MEAN_THRESHOLD \
+                and (r > 0.0).sum() > VECTOR_THRESHOLD:
+            MOTION_PRESENT = True
         else:
-            motionv = False
+            MOTION_PRESENT = False
 
-def detect_motion(camera):
-    global motionv
-    print(motionv)
-    return motionv
 
-with picamera.PiCamera() as camera:
+# Setup simple streaming service
+def stream_service(port):
 
-    print("Starting camera...")
+    server_socket = socket.socket()
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(('0.0.0.0', port))
+    server_socket.listen(0) 
     
-    out = MotionAnalyser(camera) 
-    #camera.awb_mode = 'greyworld'
+    while True:
+        try:
+            conn = server_socket.accept()[0].makefile('wb')
+            camera.start_recording(conn, splitter_port=3, format='h264')
+            while True:
+                camera.wait_recording(1, splitter_port=3)
+        except Exception as e:
+            try:
+                camera.stop_recording(splitter_port=3)
+            except:
+                ok = 1
+            continue
 
-    camera.hflip = config['camera']['hflip']
-    camera.vflip = config['camera']['vflip']
-    camera.resolution = (config['camera']['width'], config['camera']['height'])
 
-    stream = picamera.PiCameraCircularIO(camera, seconds=CIRCULAR)
-    camera.framerate = 30
-    camera.start_recording(stream, splitter_port=1,format='h264')
-    camera.start_recording('/dev/null', splitter_port=2, format='h264', motion_output=MotionAnalyser(camera)) 
+# Simple function to return if there is motion present
+def detect_motion(camera):
+    global MOTION_PRESENT
+    return MOTION_PRESENT
 
-    t = threading.Thread(name='stream_service', target=stream_service)
-    t.start()
 
-    idv = 0
+if __name__ == "__main__":
 
-    try:
-        while True:
+    config = toml.load(open('/etc/sparklemotion/config.toml'))
 
-            camera.wait_recording(1)
+    MEAN_THRESHOLD = config['motion']['mean_threshold']
+    VECTOR_THRESHOLD = config['motion']['vector_threshold']
+    vidpath = config['videos']['path']
+    circular = config['videos']['circular']  # length of circular buffer
+    beforeafter = config['videos']['beforeafter']  # time to wait before / after motion
 
-            if detect_motion(camera):
+    with picamera.PiCamera() as camera:
 
-                print('Motion detected!')
+        print("Starting camera...")
 
-                idv = datetime.datetime.now().timestamp()
-                camera.split_recording(os.path.join(VIDS,'%d.h264' % idv),splitter_port=1) # do this to record frames after motion detected     
+        out = MotionAnalyser(camera)
+        camera.hflip = config['camera']['hflip']
+        camera.vflip = config['camera']['vflip']
+        camera.resolution = (config['camera']['width'], config['camera']['height'])
+        camera.framerate = config['videos']['fps']
 
-                stream.copy_to(os.path.join(VIDS,'%d.h264' % (idv-CIRCULAR)), seconds=CIRCULAR) # copy circular buffer before motion to disk
-                stream.clear()
-                
-                while detect_motion(camera):
-                    camera.wait_recording(WAIT,splitter_port=1)
+        stream = picamera.PiCameraCircularIO(camera, seconds=circular)
+        camera.start_recording(stream, splitter_port=1, format='h264')
+        camera.start_recording('/dev/null', splitter_port=2, format='h264', motion_output=MotionAnalyser(camera))
 
-                print('Motion stopped!')
+        t = threading.Thread(name='stream_service', target=stream_service, args=(config['videos']['stream_port'],))
+        t.start()
 
-                idv += 1
+        timestamp = 0
 
-                camera.split_recording(stream,splitter_port=1)
-    finally:
-        camera.stop_recording()
+        try:
+            while True:
+
+                camera.wait_recording(1)
+
+                if detect_motion(camera):
+                    print('Motion detected!')
+
+                    timestamp = datetime.datetime.now().timestamp()
+
+                    # do this to record frames after motion detected
+                    camera.split_recording(os.path.join(vidpath, '%d.h264' % timestamp), splitter_port=1)
+
+                    # copy circular buffer before motion to disk
+                    stream.copy_to(os.path.join(vidpath, '%d.h264' % (timestamp - circular)), seconds=circular)
+
+                    stream.clear()
+
+                    # Wait till motion finishes
+                    while detect_motion(camera):
+                        camera.wait_recording(beforeafter, splitter_port=1)
+
+                    print('Motion stopped!')
+
+                    timestamp += 1
+
+                    camera.split_recording(stream, splitter_port=1)
+        finally:
+            camera.stop_recording()
 

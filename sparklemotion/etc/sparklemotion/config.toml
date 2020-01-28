@@ -10,3 +10,7 @@ vector_threshold = 150
 
 [videos]
 path = "/home/pi/vids"
+circular = 10
+beforeafter = 15
+fps = 30
+stream_port = 10000
